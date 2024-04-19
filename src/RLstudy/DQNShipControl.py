@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import torch
 print(torch.cuda.is_available())
 import torch.nn as nn
@@ -8,6 +9,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import matplotlib.pyplot as plt
+import time
 
 # 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -19,7 +21,7 @@ class ShipControlEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float32)
         self.state = np.array([0.0, 0.0, 0.0], dtype=np.float32)
         self.goal = np.array([10.0, 10.0])
-        self.max_steps = 200
+        self.max_steps = 100
         self.current_step = 0
         self.figure, self.axis = plt.subplots(figsize=(5, 5))
         self.axis.set_xlabel('X Position')
@@ -40,6 +42,13 @@ class ShipControlEnv(gym.Env):
             theta += 10.0
         elif action == 3:  # 우회전
             theta -= 10.0
+        elif action == 4:  # 후진
+            x -= np.cos(np.radians(theta))
+            y -= np.sin(np.radians(theta))
+
+        # 경계 조건 확인 및 조정
+        x = max(0, min(x, 20))  # x가 0보다 작으면 0, 20보다 크면 20
+        y = max(0, min(y, 20))  # y가 0보다 작으면 0, 20보다 크면 20
         
         self.state = np.array([x, y, theta], dtype=np.float32)
         distance_to_goal = np.linalg.norm(self.goal - self.state[:2])
@@ -58,8 +67,10 @@ class ShipControlEnv(gym.Env):
             goal = self.axis.scatter(self.goal[0], self.goal[1], color='red', label='Goal', s=100)
             self.axis.set_xlabel('X Position')
             self.axis.set_ylabel('Y Position')
+            self.axis.set_title('선박 제어 시뮬레이션')  # 그림 제목 설정
             self.axis.legend(handles=[agent, goal], loc='upper right')
             plt.pause(0.01)
+
 
 class DQN(nn.Module):
     def __init__(self, input_size, output_size):
@@ -80,13 +91,13 @@ class DQNAgent:
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.memory = deque(maxlen=10000)
-        self.batch_size = 64
-        self.gamma = 0.99
+        self.batch_size = 128
+        self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.999
         self.model = DQN(state_dim, action_dim)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0005)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0002)
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
@@ -118,6 +129,8 @@ env = ShipControlEnv()
 agent = DQNAgent(env.observation_space.shape[0], env.action_space.n)
 
 def train_dqn(episodes=100):
+    start_time = time.time() # 학습 시작 시간
+
     for e in range(episodes):
         state = env.reset()
         total_reward = 0
@@ -134,4 +147,11 @@ def train_dqn(episodes=100):
             agent.replay()
             env.render()
 
-train_dqn(100)
+    elapsed_time = time.time() - start_time  # 전체 학습 시간 계산
+    print(f"학습 완료! 총 걸린 시간: {elapsed_time:.2f} 초")
+
+    # 모델 저장
+    torch.save(agent.model.state_dict(), 'trained_model.pth')
+    print("모델 저장 완료! 파일 이름: 'trained_model.pth'")
+
+train_dqn(500)
