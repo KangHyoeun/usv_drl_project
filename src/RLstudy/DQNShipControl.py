@@ -10,6 +10,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import matplotlib.pyplot as plt
 import time
+import math
 
 # 디바이스 설정
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,7 +68,7 @@ class ShipControlEnv(gym.Env):
             goal = self.axis.scatter(self.goal[0], self.goal[1], color='red', label='Goal', s=100)
             self.axis.set_xlabel('X Position')
             self.axis.set_ylabel('Y Position')
-            self.axis.set_title('선박 제어 시뮬레이션')  # 그림 제목 설정
+            self.axis.set_title('Ship Control Simulation')  # 그림 제목 설정
             self.axis.legend(handles=[agent, goal], loc='upper right')
             plt.pause(0.01)
 
@@ -149,6 +150,29 @@ def train_dqn(episodes=100):
 
     elapsed_time = time.time() - start_time  # 전체 학습 시간 계산
     print(f"학습 완료! 총 걸린 시간: {elapsed_time:.2f} 초")
+
+    # 그래프 그리기
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(rewards)
+    plt.title('Episode vs Total Reward')
+    plt.xlabel('Episode')
+    plt.ylabel('Total Reward')
+    plt.grid(True)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epsilons)
+    plt.title('Episode vs Epsilon')
+    plt.xlabel('Episode')
+    plt.ylabel('Epsilon')
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    # 모델 저장
+    torch.save(agent.model.state_dict(), 'trained_model.pth')
+    print("모델 저장 완료! 파일 이름: 'trained_model.pth'")
 
     # 모델 저장
     torch.save(agent.model.state_dict(), 'trained_model.pth')
