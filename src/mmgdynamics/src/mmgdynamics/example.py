@@ -72,3 +72,5 @@ def test_zig_zag():
     )
 # Print the vessel dict to output
 print(json.dumps(vessel.__dict__,sort_keys=True, indent=4))
+
+test_zig_zag()
