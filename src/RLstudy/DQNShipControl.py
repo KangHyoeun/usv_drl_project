@@ -154,14 +154,14 @@ def train_dqn(episodes=100):
     # 그래프 그리기
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
-    plt.plot(rewards)
+    plt.plot(e, total_reward)
     plt.title('Episode vs Total Reward')
     plt.xlabel('Episode')
     plt.ylabel('Total Reward')
     plt.grid(True)
 
     plt.subplot(1, 2, 2)
-    plt.plot(epsilons)
+    plt.plot(e, agent.epsilon)
     plt.title('Episode vs Epsilon')
     plt.xlabel('Episode')
     plt.ylabel('Epsilon')
@@ -174,8 +174,5 @@ def train_dqn(episodes=100):
     torch.save(agent.model.state_dict(), 'trained_model.pth')
     print("모델 저장 완료! 파일 이름: 'trained_model.pth'")
 
-    # 모델 저장
-    torch.save(agent.model.state_dict(), 'trained_model.pth')
-    print("모델 저장 완료! 파일 이름: 'trained_model.pth'")
 
 train_dqn(500)
