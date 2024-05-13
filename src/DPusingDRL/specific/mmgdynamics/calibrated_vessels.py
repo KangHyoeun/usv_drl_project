@@ -138,8 +138,6 @@ kvlcc2_l7 = {
     "f_alpha":      2.747, # Rudder lift gradient coefficient (assumed rudder aspect ratio = 2)
     "rho":          1030, # Water density of freshwater
     "rho_air":      1.225, # Air density
-    "A_Fw":         240,   # Frontal wind area [m²]
-    "A_Lw":         720,   # Lateral wind area [m²]
     "t_R":          0.387, # Steering resistance deduction factor
     "t_P":          0.220, # Thrust deduction factor. TODO give this more than an arbitrary value
     "x_H_dash":    -0.464, # Longitudinal coordinate of acting point of the additional lateral force
