@@ -1,0 +1,177 @@
+absl-py==2.1.0
+action-tutorials-py==0.9.4
+alembic==1.13.1
+ament-copyright==0.9.8
+ament-cppcheck==0.9.8
+ament-cpplint==0.9.8
+ament-flake8==0.9.8
+ament-index-python==1.1.0
+ament-lint==0.9.8
+ament-lint-cmake==0.9.8
+ament-package==0.9.5
+ament-pep257==0.9.8
+ament-uncrustify==0.9.8
+ament-xmllint==0.9.8
+appdirs==1.4.3
+astor==0.7.1
+astroid==2.1.0
+asttokens==2.4.1
+atomicwrites==1.3.0
+attrs==19.2.0
+backcall==0.1.0
+bleach==3.1.0
+Brotli @ file:///tmp/abs_ecyw11_7ze/croots/recipe/brotli-split_1659616059936/work
+certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1707022139797/work/certifi
+chardet==5.2.0
+charset-normalizer @ file:///tmp/build/80754af9/charset-normalizer_1630003229654/work
+cloudpickle==1.3.0
+colorama==0.4.1
+colorlog==6.8.2
+contourpy==1.2.1
+cycler==0.10.0
+DataProperty==1.0.1
+decorator==5.1.1
+demo-nodes-py==0.9.4
+domain-coordinator==0.9.2
+examples-rclpy-executors==0.9.4
+examples-rclpy-minimal-action-client==0.9.4
+examples-rclpy-minimal-action-server==0.9.4
+examples-rclpy-minimal-client==0.9.4
+examples-rclpy-minimal-publisher==0.9.4
+examples-rclpy-minimal-service==0.9.4
+examples-rclpy-minimal-subscriber==0.9.4
+exceptiongroup==1.2.1
+executing==2.0.1
+Farama-Notifications==0.0.4
+filelock @ file:///croot/filelock_1700591183607/work
+fonttools==4.51.0
+fsspec==2024.3.1
+gmpy2 @ file:///tmp/build/80754af9/gmpy2_1645455533097/work
+greenlet==3.0.3
+gymnasium==0.29.1
+gymnasium-notices==0.0.1
+h5py==3.11.0
+huggingface-hub==0.22.2
+huggingface-sb3==3.0
+idna @ file:///croot/idna_1666125576474/work
+ipython==8.23.0
+jedi==0.19.1
+Jinja2 @ file:///croot/jinja2_1706733616596/work
+keras==3.3.3
+kiwisolver==1.4.5
+launch==0.10.10
+launch-ros==0.11.7
+launch-testing==0.10.10
+launch-testing-ros==0.11.7
+launch-xml==0.10.10
+launch-yaml==0.10.10
+lazy-object-proxy==1.10.0
+Mako==1.3.3
+markdown-it-py==3.0.0
+MarkupSafe @ file:///croot/markupsafe_1704205993651/work
+matplotlib==3.8.4
+matplotlib-inline==0.1.7
+mbstrdecoder==1.1.3
+mdurl==0.1.2
+mkl-fft @ file:///croot/mkl_fft_1695058164594/work
+mkl-random @ file:///croot/mkl_random_1695059800811/work
+mkl-service==2.4.0
+ml-dtypes==0.4.0
+mmgdynamics @ git+https://github.com/nikpau/mmgdynamics@19427730dd383c5571bf901bcb922aa1ece9b1e4
+mpi4py @ file:///home/conda/feedstock_root/build_artifacts/mpi4py_1713171792205/work
+mpmath @ file:///croot/mpmath_1690848262763/work
+namex==0.0.8
+networkx @ file:///croot/networkx_1690561992265/work
+numpy==1.26.0
+opencv-python==4.9.0.80
+optree==0.11.0
+optuna==3.6.1
+osrf-pycommon==0.1.11
+packaging==24.0
+pandas==2.2.2
+parso==0.8.4
+pathvalidate==3.2.0
+pexpect==4.9.0
+pillow @ file:///croot/pillow_1707233021655/work
+prompt-toolkit==3.0.43
+ptyprocess==0.7.0
+pure-eval==0.2.2
+pygame==2.1.0
+Pygments==2.17.2
+pyparsing==3.1.2
+PySocks @ file:///home/builder/ci_310/pysocks_1640793678128/work
+pytablewriter==1.2.0
+python-dateutil==2.9.0.post0
+pytz==2024.1
+PyYAML @ file:///croot/pyyaml_1698096049011/work
+quality-of-service-demo-py==0.9.4
+requests @ file:///croot/requests_1707355572290/work
+rich==13.7.1
+rl_zoo3==2.3.0
+ros2action==0.9.13
+ros2bag==0.3.11
+ros2cli==0.9.13
+ros2component==0.9.13
+ros2controlcli==0.11.0
+ros2doctor==0.9.13
+ros2interface==0.9.13
+ros2launch==0.11.7
+ros2lifecycle==0.9.13
+ros2multicast==0.9.13
+ros2node==0.9.13
+ros2param==0.9.13
+ros2pkg==0.9.13
+ros2run==0.9.13
+ros2service==0.9.13
+ros2topic==0.9.13
+rosidl-runtime-py==0.9.1
+rpyutils==0.2.0
+rqt==1.1.2
+rqt-action==1.0.2
+rqt-console==1.1.2
+rqt-graph==1.1.3
+rqt-gui==1.1.2
+rqt-gui-py==1.1.2
+rqt-moveit==1.0.1
+rqt-msg==1.1.1
+rqt-plot==1.1.1
+rqt-publisher==1.3.0
+rqt-py-console==1.0.2
+rqt-reconfigure==1.0.8
+rqt-robot-dashboard==0.5.8
+rqt-robot-monitor==1.0.5
+rqt-robot-steering==1.0.0
+rqt-runtime-monitor==1.0.0
+rqt-service-caller==1.0.5
+rqt-shell==1.0.2
+rqt-srv==1.0.3
+rqt-tf-tree==1.0.2
+rqt-top==1.0.2
+rqt-topic==1.3.0
+sb3_contrib==2.3.0
+scipy==1.13.0
+six==1.16.0
+SQLAlchemy==2.0.29
+sros2==0.9.5
+stable_baselines3==2.3.1
+stack-data==0.6.3
+sympy @ file:///croot/sympy_1701397643339/work
+tabledata==1.3.3
+tabulate==0.9.0
+tcolorpy==0.1.4
+teleop-twist-keyboard==2.3.2
+topic-monitor==0.9.4
+torch==2.2.2
+torchaudio==2.2.2
+torchvision==0.17.2
+tqdm==4.66.2
+traitlets==5.14.3
+triton==2.2.0
+typepy==1.3.2
+typing_extensions @ file:///croot/typing_extensions_1705599297034/work
+tzdata==2024.1
+urllib3 @ file:///croot/urllib3_1707770551213/work
+wasabi==1.1.2
+wcwidth==0.2.13
+webencodings==0.5.1
+wrapt==1.16.0
