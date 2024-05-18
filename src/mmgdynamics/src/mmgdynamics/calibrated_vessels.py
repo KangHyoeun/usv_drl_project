@@ -1,3 +1,4 @@
+# calibrated_vessels.py
 # L64 model of the KVLCC2 Tanker ship. Originally 320m length, 58m width.
 # Scale of model 1/5
 kvlcc2_l64 = {
