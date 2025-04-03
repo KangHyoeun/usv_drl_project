@@ -18,12 +18,12 @@ class DuelingDQN(nn.Module):
         conv_out_size = self._get_conv_output(input_shape)
 
         self.fc = nn.Sequential(
-            nn.Linear(conv_out_size + state_vec_dim, 512),
+            nn.Linear(conv_out_size + state_vec_dim, 128),
             nn.ReLU()
         )
 
-        self.adv = nn.Linear(512, n_actions)
-        self.val = nn.Linear(512, 1)
+        self.adv = nn.Linear(128, n_actions)
+        self.val = nn.Linear(128, 1)
 
     def _get_conv_output(self, shape):
         o = self.conv(torch.zeros(1, *shape))

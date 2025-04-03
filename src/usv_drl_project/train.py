@@ -42,15 +42,24 @@ def train():
         for i in range(CONFIG['n_envs']):
             # ❌ TCPA 판단 제거
             if np.random.rand() < epsilon:
-                actions.append(0)  # always 경로추종 명령
+                actions.append(np.random.choice([0, 1, 2]))  # 💡 무작위 행동 선택
+                # actions.append(0)  # always 경로추종 명령
             else:
+                encounter_type = obs['encounter_type'][i]
                 with torch.no_grad():
                     grid = torch.tensor(obs['grid_map'][i], dtype=torch.float32).unsqueeze(0).to(CONFIG['device'])
                     vec = torch.tensor(obs['state_vec'][i], dtype=torch.float32).unsqueeze(0).to(CONFIG['device'])
                     q_values = policy_net(grid, vec)
-                    actions.append(torch.argmax(q_values, dim=1).item())
+                    if encounter_type == 'Static':
+                        avoid_action = torch.argmax(q_values[0, 1:]).item() + 1
+                    else:
+                        avoid_action = torch.argmax(q_values, dim=1).item()
+                    actions.append(avoid_action)
 
-        next_obs, rewards, dones, infos = envs.step(actions)
+        # 먼저 epsilon 업데이트
+        epsilon = max(CONFIG['epsilon_final'], CONFIG['epsilon_start'] - global_step / CONFIG['epsilon_decay'])
+        epsilons = [epsilon] * CONFIG['n_envs']
+        next_obs, rewards, terminateds, truncateds, infos = envs.step(actions, epsilons)
 
         for i in range(CONFIG['n_envs']):
             curr_obs = {
@@ -61,12 +70,11 @@ def train():
                 'grid_map': next_obs['grid_map'][i],
                 'state_vec': next_obs['state_vec'][i]
             }
-            buffer.push(curr_obs, actions[i], rewards[i], next_o, dones[i])
+            done = np.logical_or(terminateds[i], truncateds[i])
+            buffer.push(curr_obs, actions[i], rewards[i], next_o, done=done)
 
         obs = next_obs
         global_step += 1
-
-        epsilon = max(CONFIG['epsilon_final'], CONFIG['epsilon_start'] - global_step / CONFIG['epsilon_decay'])
 
         if len(buffer) < CONFIG['start_learning']:
             continue

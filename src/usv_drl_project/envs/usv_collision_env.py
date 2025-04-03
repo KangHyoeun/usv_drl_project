@@ -3,14 +3,17 @@ import numpy as np
 import math
 import random
 from gymnasium import spaces
+from scipy.integrate import solve_ivp
+from models.otter import otter
 from utils.gridmap_utils import generate_grid_map
 from utils.encounter_classifier import classify_encounter
 from utils.cpa_utils import compute_cpa, is_risk
-from utils.vo_utils import is_inside_vo, classify_velocity_region
-from utils.reward_utils import compute_avoidance_reward
+from utils.vo_utils import select_avoidance_heading, get_available_avoid_directions
+from utils.reward_utils import compute_avoidance_reward, compute_path_reward
 from utils.guidance import vector_field_guidance
-from utils.control import steering_controller
+from utils.control import Binv, T, K, Kp, Td, Ti, T_n, r_max, zeta_d, wn_d
 from utils.angle import ssa
+from utils.gnc import ref_model
 
 class USVCollisionEnv(gym.Env):
     def __init__(self, config):
@@ -22,46 +25,86 @@ class USVCollisionEnv(gym.Env):
             "state_vec": spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)
         })
         self.action_space = spaces.Discrete(3)
+        self.max_episode_steps = config.get("max_episode_steps", 1000)  # default 1000
+        self.t = 0
         self.prev_state = None
         self.prev_action = None
         self.state = None
         self.in_avoidance = False
+        self.avoid_obs = None
         self.avoid_action = 0
-        self.prev_psi = None
+        self.z_psi = 0.0
+        self.psi_d = None
+        self.psi_ref = self.psi_d
+        self.chi_ref_prev = self.psi_ref
+        self.r_d = 0.0
+        self.a_d = 0.0
+        self.n = np.array([0.0, 0.0])
 
     def reset(self, seed=None, options=None):
         self.t = 0
-        self.done = False
         self.in_avoidance = False
         self.avoid_action = 0
+        self.tcpa_init = None
         self.state = self._init_state()
         self.prev_state = self.state.copy()
         obs = self._get_obs()
         return obs, {}
 
-    def step(self, action):
+    def step(self, action, epsilon):
         if not self.in_avoidance:
             for obs in self.state['obstacles']:
                 dcpa, tcpa = compute_cpa(self.state, obs)
                 if is_risk(dcpa, tcpa):
-                    tcpa_exp = self.config.get('tcpa_exploration_factor', 0.5) * 20.0
+
+                    if not hasattr(self, "tcpa_init") or self.tcpa_init is None:
+                        self.tcpa_init = tcpa
+
+                    tcpa_exp = epsilon * self.tcpa_init
                     if tcpa < tcpa_exp:
+                        pA = np.array([self.state['x'], self.state['y']])
+                        vA = np.array([
+                            self.state['u'] * math.cos(self.state['psi']),
+                            self.state['u'] * math.sin(self.state['psi'])
+                        ])
+                        pB = np.array([obs['x'], obs['y']])
+                        vB = np.array([obs['vx'], obs['vy']])
+                        can_left, can_right = get_available_avoid_directions(vA, pA, pB, vB)
+
+                        if can_left and can_right:
+                            self.avoid_action = random.choice([1, 2])
+                        elif can_left:
+                            self.avoid_action = 1
+                        elif can_right:
+                            self.avoid_action = 2
+                        else:
+                            self.avoid_action = random.choice([1, 2])  # fallback
+
                         self.in_avoidance = True
-                        self.avoid_action = random.choice([1, 2])
+                        self.avoid_obs = obs
                         break
 
         if self.in_avoidance:
             action = self.avoid_action
 
-        self._apply_action(action)
+        self._compute_control_inputs(action)
+
+        if action == 0:
+            self.chi_ref_prev = self.psi_ref
+
         self._simulate_dynamics()
+        self._simulate_obstacles()
         reward, terminated = self._compute_reward_and_done(action)
+
         self.t += 1
+        truncated = self.t >= self.max_episode_steps
+
+        done = terminated or truncated
 
         obs = self._get_obs()
         self.prev_state = self.state.copy()
         self.prev_action = action
-        return obs, reward, terminated, False, {}
+        return obs, reward, terminated, truncated, {}
 
     def _get_obs(self):
         grid_map = generate_grid_map(self.state, self.config)
@@ -70,7 +113,18 @@ class USVCollisionEnv(gym.Env):
             self.state["rpm1"], self.state["rpm2"],
             self._estimate_env_bias()
         ])
-        return {"grid_map": grid_map, "state_vec": state_vec}
+
+        # Encounter type 판단 (기본적으로 가장 위험한 장애물 기준)
+        if self.avoid_obs is not None:
+            encounter_type = classify_encounter(self.state, self.avoid_obs)
+        else:
+            encounter_type = "None"
+
+        return {
+            "grid_map": grid_map,
+            "state_vec": state_vec,
+            "encounter_type": encounter_type  # ✅ 추가됨
+        }
 
     def _estimate_env_bias(self):
         if self.prev_state is None:
@@ -91,53 +145,37 @@ class USVCollisionEnv(gym.Env):
     def _compute_reward_and_done(self, action):
         x, y = self.state['x'], self.state['y']
         psi = self.state['psi']
-        done = False
+        terminated = False
         reward = 0.0
         e_cross = abs(x)
-        reward += math.exp(-e_cross)
-        env_bias = self._estimate_env_bias()
 
-        for obs in self.state['obstacles']:
-            dx = x - obs['x']
-            dy = y - obs['y']
-            dist = math.hypot(dx, dy)
+        if action == 0:
+            reward += compute_path_reward(e_cross, krpath=-1.0)
+        else:
+            obs = self.avoid_obs  # 단일 객체로 사용
+            if obs is not None:
+                dx = x - obs['x']
+                dy = y - obs['y']
+                dist = math.hypot(dx, dy)
 
-            encounter = classify_encounter(self.state, obs)
-            dcpa, tcpa = compute_cpa(self.state, obs)
-            risk = is_risk(dcpa, tcpa)
+                if dist < 2.0:
+                    return -1.0, True  # 충돌 → 종료
 
-            if dist < 5.0:
-                reward = -1.0
-                done = True
-                break
+                dcpa, tcpa = compute_cpa(self.state, obs)
+                encounter_type = classify_encounter(self.state, obs)
+                risk = is_risk(dcpa, tcpa)
+                if risk:
+                    # 회피변침각 = 현재 psi - 과거 경로추종 침로
+                    delta_psi = abs(psi - self.chi_ref_prev)
+                    reward += compute_avoidance_reward(encounter_type, delta_psi, tcpa)
 
-            if risk:
-                ref_psi = math.atan2(obs['y'] - y, obs['x'] - x)
-                delta_psi = abs(self.state['psi'] - ref_psi)
-                reward += compute_avoidance_reward(encounter, delta_psi, tcpa, env_bias)
-
-                # ✅ VO 방향 기반 보상
-                pA = np.array([x, y])
-                vA = np.array([self.state['u'] * math.cos(psi), self.state['u'] * math.sin(psi)])
-                pB = np.array([obs['x'], obs['y']])
-                vB = np.array([obs['vx'], obs['vy']])
-                v_rel = vA - vB
-                p_rel = pB - pA
-
-                if is_inside_vo(vA, pA, pB, 2.0, 2.0, vB):
-                    region = classify_velocity_region(v_rel, p_rel)
-                    if region == 'V1':
-                        reward -= 0.5
-                    elif region == 'V2':
-                        reward += 0.5
-
-        return reward, done
+        return reward, terminated
 
     def _init_state(self):
         return {
-            "u": 1.5, "v": 0.0, "r": 0.0,
-            "rpm1": 0.5, "rpm2": 0.5,
-            "x": 0.0, "y": 0.0, "psi": 0.0,
+            "u": 0.0, "v": 0.0, "w": 0.0, "p": 0.0, "q": 0.0, "r": 0.0, 
+            "x": 0.0, "y": 0.0, "z": 0.0, "phi": 0.0, "theta": 0.0, "psi": 0.0,
+            "rpm1": 0.0, "rpm2": 0.0,
             "obstacles": self._spawn_obstacles()
         }
 
@@ -158,60 +196,87 @@ class USVCollisionEnv(gym.Env):
                 obs_list.append({"x": random.uniform(-20, 20), "y": random.uniform(30, 70),
                                  "vx": 0.0, "vy": 0.0, "dynamic": False, "psi": 0.0})
         return obs_list
-
+    
     def _simulate_dynamics(self):
-        rpm_avg = (self.state['rpm1'] + self.state['rpm2']) / 2
-        self.state['u'] = rpm_avg * 3.0
-        self.state['r'] = (self.state['rpm2'] - self.state['rpm1']) * 1.0
         dt = 0.1
-        self.state['psi'] += self.state['r'] * dt
-        dx = self.state['u'] * math.cos(self.state['psi']) * dt
-        dy = self.state['u'] * math.sin(self.state['psi']) * dt
-        self.state['x'] += dx
-        self.state['y'] += dy
+        keys = ["u", "v", "w", "p", "q", "r", "x", "y", "z", "phi", "theta", "psi"]
+        x0 = np.array([self.state[k] for k in keys])
+        n_input = np.array([self.state["rpm1"], self.state["rpm2"]])
 
-    def _apply_action(self, action):
-        pA = np.array([self.state['x'], self.state['y']])
-        vA = np.array([
-            self.state['u'] * math.cos(self.state['psi']),
-            self.state['u'] * math.sin(self.state['psi'])
-        ])
-        rA = 2.0
+        def f(t, x):
+            dx, *_ = otter(x, n_input, 25.0, np.array([0.05, 0, -0.35]), 0.3, np.deg2rad(30))
+            return dx
+        sol = solve_ivp(f, [0, dt], x0, method='RK45', t_eval=[dt])
+        x_next = sol.y[:, -1]
+        # 상태값 업데이트
+        for i, key in enumerate(keys):
+            self.state[key] = x_next[i]
 
+    def _simulate_obstacles(self, dt=0.1):
         for obs in self.state['obstacles']:
-            pB = np.array([obs['x'], obs['y']])
-            vB = np.array([obs['vx'], obs['vy']])
-            rB = 2.0
-            if is_inside_vo(vA, pA, pB, rA, rB, vB):
-                v_rel = vA - vB
-                p_rel = pB - pA
-                region = classify_velocity_region(v_rel, p_rel)
-                if action == 1 and region == 'V1':
-                    action = 2
-                    break
+            if obs['dynamic']:  # 동적 장애물만 이동
+                obs['x'] += obs['vx'] * dt  # 속도 * 시간
+                obs['y'] += obs['vy'] * dt  # 직선 운동
 
+
+    def _compute_control_inputs(self, action):
+        psi = self.state['psi']
+        r = self.state['r']
+        dt = 0.1
+        
         if action == 0:
-            y = self.state['x']
-            psi = self.state['psi']
-            dt = 0.1
 
             chi_inf_rad = math.radians(self.config.get("vfg_chi_inf_deg", 45.0))
             chi_path_rad = math.radians(self.config.get("vfg_chi_path_deg", 0.0))
             k = self.config.get("vfg_k", 1.0)
 
-            chi_d = vector_field_guidance(y, chi_path=chi_path_rad, chi_inf=chi_inf_rad, k=k)
+            self.psi_ref = vector_field_guidance(self.state['x'], chi_path=chi_path_rad, chi_inf=chi_inf_rad, k=k)
 
-            kp = self.config.get("steering_kp", 1.0)
-            kd = self.config.get("steering_kd", 0.2)
+            # Reference model propagation
+            self.psi_d, self.r_d, self.a_d = ref_model(self.psi_d, self.r_d, self.a_d, self.psi_ref, r_max, zeta_d, wn_d, dt, 1)
 
-            delta = steering_controller(chi_d, psi, self.prev_psi, dt, kp, kd)
-            self.prev_psi = psi  # 업데이트
+            # PID heading (yaw moment) autopilot and forward thrust
+            tau_X = 100                              # Constant forward thrust
+            tau_N = (T/K) * self.a_d + (1/K) * self.r_d - Kp * (ssa(psi - self.psi_d) + Td * (r - self.r_d) + (1/Ti) * self.z_psi) # Derivative and integral terms
 
-            self.state['rpm1'] = 0.5 - delta
-            self.state['rpm2'] = 0.5 + delta
-        elif action == 1:
-            self.state['rpm1'] = 0.3
-            self.state['rpm2'] = 0.6
-        elif action == 2:
-            self.state['rpm1'] = 0.6
-            self.state['rpm2'] = 0.3
+            # Control allocation
+            u = Binv @ np.array([tau_X, tau_N])      # Compute control inputs for propellers
+            n_c = np.sign(u) * np.sqrt(np.abs(u))  # Convert to required propeller speeds
+
+            # Euler's method
+            self.n = self.n + dt/T_n * (n_c - self.n)              # Update propeller speeds
+            self.z_psi = self.z_psi + dt * ssa(psi - self.psi_d)   # Update integral state
+
+            self.state['rpm1'] = self.n[0]
+            self.state['rpm2'] = self.n[1]
+
+        elif action in [1, 2]:
+            # 장애물 정보 가져오기
+            obs = self.avoid_obs
+            pA = np.array([self.state['x'], self.state['y']])
+            vA = np.array([
+                self.state['u'] * math.cos(psi),
+                self.state['u'] * math.sin(psi)
+            ])
+            pB = np.array([obs['x'], obs['y']])
+            vB = np.array([obs['vx'], obs['vy']])
+
+            direction = 'left' if action == 1 else 'right'
+            self.psi_ref = select_avoidance_heading(vA, pA, pB, vB, direction)
+            # Reference model propagation
+            self.psi_d, self.r_d, self.a_d = ref_model(self.psi_d, self.r_d, self.a_d, self.psi_ref, r_max, zeta_d, wn_d, dt, 1)
+
+            # PID heading (yaw moment) autopilot and forward thrust
+            tau_X = 100                              # Constant forward thrust
+            tau_N = (T/K) * self.a_d + (1/K) * self.r_d - Kp * (ssa(psi - self.psi_d) + Td * (r - self.r_d) + (1/Ti) * self.z_psi) # Derivative and integral terms
+
+            # Control allocation
+            u = Binv @ np.array([tau_X, tau_N])      # Compute control inputs for propellers
+            n_c = np.sign(u) * np.sqrt(np.abs(u))  # Convert to required propeller speeds
+
+            # Euler's method
+            self.n = self.n + dt/T_n * (n_c - self.n)              # Update propeller speeds
+            self.z_psi = self.z_psi + dt * ssa(psi - self.psi_d)   # Update integral state
+
+            self.state['rpm1'] = self.n[0]
+            self.state['rpm2'] = self.n[1]

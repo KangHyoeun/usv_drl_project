@@ -25,9 +25,7 @@ def compute_cpa(own_state, target_state):
     cpa_B = pB + vB * tcpa
     dcpa = np.linalg.norm(cpa_A - cpa_B)
 
-    if is_risk(dcpa, tcpa):  # config의 임계값을 이용하여 위험 여부 확인
-        return dcpa, tcpa, True  # 위험이 있으면 True 반환
-    return dcpa, tcpa, False  # 위험이 없으면 False 반환
+    return dcpa, tcpa
 
 def is_risk(dcpa, tcpa, dcpa_thresh=10.0, tcpa_thresh=20.0):
     dcpa_thresh = dcpa_thresh if dcpa_thresh is not None else CONFIG['dcpa_thresh']
