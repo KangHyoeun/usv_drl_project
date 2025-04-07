@@ -38,6 +38,8 @@ def train():
     logger = CSVLogger('./logs/train_log.csv')
 
     for _ in trange(CONFIG['total_timesteps']):
+
+        # 먼저 epsilon 업데이트
         actions = []
         for i in range(CONFIG['n_envs']):
             # ❌ TCPA 판단 제거
@@ -58,17 +60,23 @@ def train():
 
         # 먼저 epsilon 업데이트
         epsilon = max(CONFIG['epsilon_final'], CONFIG['epsilon_start'] - global_step / CONFIG['epsilon_decay'])
-        epsilons = [epsilon] * CONFIG['n_envs']
-        next_obs, rewards, terminateds, truncateds, infos = envs.step(actions, epsilons)
+
+        # ✅ 환경별 ε 값 설정 추가
+        for i in range(CONFIG['n_envs']):
+            envs.env_method('set_epsilon', epsilon, indices=[i])
+
+        next_obs, rewards, terminateds, truncateds, infos = envs.step(actions)
 
         for i in range(CONFIG['n_envs']):
             curr_obs = {
                 'grid_map': obs['grid_map'][i],
-                'state_vec': obs['state_vec'][i]
+                'state_vec': obs['state_vec'][i],
+                'encounter_type': obs['encounter_type'][i]  # ✅ 추가
             }
             next_o = {
                 'grid_map': next_obs['grid_map'][i],
-                'state_vec': next_obs['state_vec'][i]
+                'state_vec': next_obs['state_vec'][i],
+                'encounter_type': next_obs['encounter_type'][i]  # ✅ 추가
             }
             done = np.logical_or(terminateds[i], truncateds[i])
             buffer.push(curr_obs, actions[i], rewards[i], next_o, done=done)

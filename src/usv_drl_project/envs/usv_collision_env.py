@@ -22,19 +22,18 @@ class USVCollisionEnv(gym.Env):
         self.grid_size = (84, 84)
         self.observation_space = spaces.Dict({
             "grid_map": spaces.Box(low=0, high=1, shape=(3, *self.grid_size), dtype=np.float32),
-            "state_vec": spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)
+            "state_vec": spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32),
         })
         self.action_space = spaces.Discrete(3)
         self.max_episode_steps = config.get("max_episode_steps", 1000)  # default 1000
         self.t = 0
         self.prev_state = None
-        self.prev_action = None
         self.state = None
         self.in_avoidance = False
         self.avoid_obs = None
         self.avoid_action = 0
         self.z_psi = 0.0
-        self.psi_d = None
+        self.psi_d = 0.0
         self.psi_ref = self.psi_d
         self.chi_ref_prev = self.psi_ref
         self.r_d = 0.0
@@ -44,23 +43,28 @@ class USVCollisionEnv(gym.Env):
     def reset(self, seed=None, options=None):
         self.t = 0
         self.in_avoidance = False
+        self.avoid_obs = None
         self.avoid_action = 0
         self.tcpa_init = None
         self.state = self._init_state()
+        # 장애물 정보 확인
+        print("Initial obstacles:", self.state['obstacles'])
         self.prev_state = self.state.copy()
         obs = self._get_obs()
         return obs, {}
 
-    def step(self, action, epsilon):
+    def step(self, action):
+
+        if self.in_avoidance and self.avoid_obs is None:
+            print("[FIXED] in_avoidance True인데 avoid_obs 없어서 초기화함")
+            self.in_avoidance = False
+            self.avoid_action = 0
+
         if not self.in_avoidance:
             for obs in self.state['obstacles']:
                 dcpa, tcpa = compute_cpa(self.state, obs)
                 if is_risk(dcpa, tcpa):
-
-                    if not hasattr(self, "tcpa_init") or self.tcpa_init is None:
-                        self.tcpa_init = tcpa
-
-                    tcpa_exp = epsilon * self.tcpa_init
+                    tcpa_exp = self.epsilon * tcpa
                     if tcpa < tcpa_exp:
                         pA = np.array([self.state['x'], self.state['y']])
                         vA = np.array([
@@ -70,6 +74,7 @@ class USVCollisionEnv(gym.Env):
                         pB = np.array([obs['x'], obs['y']])
                         vB = np.array([obs['vx'], obs['vy']])
                         can_left, can_right = get_available_avoid_directions(vA, pA, pB, vB)
+                        self.avoid_obs = obs  # 장애물 할당
 
                         if can_left and can_right:
                             self.avoid_action = random.choice([1, 2])
@@ -81,16 +86,24 @@ class USVCollisionEnv(gym.Env):
                             self.avoid_action = random.choice([1, 2])  # fallback
 
                         self.in_avoidance = True
-                        self.avoid_obs = obs
                         break
 
         if self.in_avoidance:
             action = self.avoid_action
 
-        self._compute_control_inputs(action)
+        if action in [1, 2]:
+            obs = self.avoid_obs
+            if obs is None:
+                print("[WARN] in_avoidance=True but avoid_obs is None — fallback to path following")
+                action = 0
+                self.in_avoidance = False
+                self.avoid_action = 0
+                self.avoid_obs = None
 
         if action == 0:
             self.chi_ref_prev = self.psi_ref
+
+        self._compute_control_inputs(action)
 
         self._simulate_dynamics()
         self._simulate_obstacles()
@@ -103,8 +116,10 @@ class USVCollisionEnv(gym.Env):
 
         obs = self._get_obs()
         self.prev_state = self.state.copy()
-        self.prev_action = action
         return obs, reward, terminated, truncated, {}
+    
+    def set_epsilon(self, epsilon):
+        self.epsilon = epsilon
 
     def _get_obs(self):
         grid_map = generate_grid_map(self.state, self.config)
