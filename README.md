@@ -10,13 +10,11 @@ USV의 충돌 회피 알고리즘을 강화학습으로 학습하고 시뮬레�
 
 ## 🧠 주요 특징
 
-- ✅ **NED 좌표계 통일** (X=북, Y=동, ψ=0=북쪽)
 - ✅ **Dueling DQN + Target Network 기반 강화학습**
 - ✅ **Tam & Bucknall 방식 조우 유형 분류**
 - ✅ **Head-on, Give-way, Overtaking, Stand-on 시나리오 지원**
 - ✅ **Otter USV (L=2.0m) 기반 동역학 모델 적용**
 - ✅ **조우 상황별 조건 필터링 기반 장애물 spawn**
-- ✅ **Grid map 시각화, reward curve 로깅, trajectory 추적 지원**
 
 ---
 
