@@ -3,6 +3,8 @@ import math
 import numpy as np
 from utils.angle import ssa
 
+dt = 0.1
+
 # Otter USV system matrices
 M = np.array([
     [85.2815,  0,      0,      0,      -11,       0],
@@ -37,3 +39,25 @@ Ti = 10.0 / wn                           # Integral time constant
 
 # Propeller dynamics
 T_n = 0.1                       # Propeller time constant (s)
+
+def yaw_pid_controller(psi, psi_d, r, a_d, r_d, z_psi):
+    
+    psi_error = ssa(psi - psi_d)
+    error_d = r - r_d
+    error_i = z_psi
+
+    tau_X = 100
+    tau_N = (T/K) * a_d + (1/K) * r_d - Kp * (psi_error + Td * error_d + (1/Ti) * error_i)
+
+    z_psi += dt * psi_error
+
+    return tau_X, tau_N, z_psi
+
+def control_allocation(tau_X, tau_N, n):
+
+    u = Binv @ np.array([tau_X, tau_N])
+    n_c = np.sign(u) * np.sqrt(np.abs(u))
+
+    n += dt/T_n * (n_c - n)
+
+    return n_c, n

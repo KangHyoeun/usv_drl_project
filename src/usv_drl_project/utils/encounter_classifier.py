@@ -1,18 +1,16 @@
 # src/usv_drl_project/utils/encounter_classifier.py
 import numpy as np
 import math
-
-def wrap_to_pi(angle):
-    return (angle + np.pi) % (2 * np.pi) - np.pi
+from utils.angle import ssa
 
 def get_relative_angle(own_heading, target_pos, own_pos):
     dx = target_pos[0] - own_pos[0]
     dy = target_pos[1] - own_pos[1]
     rel_angle = math.atan2(dy, dx)
-    return wrap_to_pi(rel_angle - own_heading)
+    return ssa(rel_angle - own_heading)
 
 def get_relative_heading(own_heading, target_heading):
-    return wrap_to_pi(target_heading - own_heading)
+    return ssa(target_heading - own_heading)
 
 def classify_encounter(own_state, target_state):
     """
@@ -37,9 +35,9 @@ def classify_encounter(own_state, target_state):
         sector = 'R3'
     elif 5*np.pi/8 <= rel_angle < np.pi or -np.pi <= rel_angle < -5*np.pi/8:
         sector = 'R4'
-    elif -5*np.pi/8 <= rel_angle < np.pi/2:
+    elif -5*np.pi/8 <= rel_angle < -np.pi/2:
         sector = 'R5'
-    elif np.pi/2 <= rel_angle < -np.pi/8:
+    elif -np.pi/2 <= rel_angle < -np.pi/8:
         sector = 'R6'
     else:
         sector = 'R1'  # 기본값
